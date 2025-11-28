@@ -25,10 +25,35 @@ fun CountryDetailScreen(vm: MainViewModel) {
         modifier = Modifier
             .fillMaxSize()
             .padding(28.dp)
+            .verticalScroll(rememberScrollState())
     ) {
         when (val s = state) {
             is UiState.SuccessCountry -> {
-                // ... (Success state remains the same)
+                val stats = s.data
+                val lastDay = stats.timeline.lastOrNull()
+
+                // --- Header ---
+                Text(stats.country, style = MaterialTheme.typography.headlineLarge)
+                Spacer(Modifier.height(24.dp))
+
+                // --- Stat Cards ---
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    StatCard(label = "Confirmed", value = lastDay?.confirmed)
+                    StatCard(label = "Deaths", value = lastDay?.deaths)
+                    StatCard(label = "Recovered", value = lastDay?.recovered)
+                }
+
+                Spacer(Modifier.height(40.dp))
+
+                // --- Trend Chart ---
+                Text("Cases Trend", style = MaterialTheme.typography.headlineSmall)
+                Spacer(Modifier.height(16.dp))
+                val chartValues = stats.timeline.mapNotNull { it.confirmed }
+                TrendChart(values = chartValues)
+
             }
             is UiState.Error -> {
                 Column(
@@ -36,12 +61,12 @@ fun CountryDetailScreen(vm: MainViewModel) {
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text("¡Ups! Algo salió mal", style = MaterialTheme.typography.titleLarge)
+                    Text("Oops! Something went wrong", style = MaterialTheme.typography.titleLarge)
                     Spacer(Modifier.height(8.dp))
                     Text(s.message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
                     Spacer(Modifier.height(24.dp))
                     Button(onClick = { vm.retry() }) {
-                        Text("Reintentar")
+                        Text("Try again")
                     }
                 }
             }
@@ -51,11 +76,11 @@ fun CountryDetailScreen(vm: MainViewModel) {
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text("Cargando datos del país...")
+                    Text("Loading country data...")
                 }
             }
             else -> {
-                Text("Busca un país para ver sus estadísticas.")
+                Text("Search for a country to see its stats.")
             }
         }
     }

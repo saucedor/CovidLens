@@ -1,38 +1,26 @@
 package com.example.covidlens.data.mapper
 
-import com.example.covidlens.data.remote.dto.RegionTimelineDto
-import com.example.covidlens.domain.model.CountryStats
-import com.example.covidlens.domain.model.DayStat
+import com.example.covidlens.data.remote.dto.CaseDto
+import com.example.covidlens.data.remote.dto.RegionStatsDto
+import com.example.covidlens.domain.model.CaseCount
+import com.example.covidlens.domain.model.RegionCases
 
-fun List<RegionTimelineDto>.toDomain(): CountryStats {
-    val countryName = this.firstOrNull()?.country ?: "Unknown"
+fun RegionStatsDto.toDomain(): RegionCases {
+    return RegionCases(
+        country = country,
+        region = region,
+        timeline = cases.toTimelineList()
+    )
+}
 
-    // A map to hold the aggregated stats for each day (date -> DayStat)
-    val aggregatedStats = mutableMapOf<String, DayStat>()
-
-    // Iterate over each region's timeline
-    this.forEach { regionDto ->
-        regionDto.cases.forEach { (date, caseDayDto) ->
-            val existingDayStat = aggregatedStats[date]
-            if (existingDayStat != null) {
-                // If the date already exists, add the new cases to the total
-                aggregatedStats[date] = existingDayStat.copy(
-                    confirmed = (existingDayStat.confirmed ?: 0) + caseDayDto.total
-                    // The new API response does not have deaths or recovered per day, so we leave them as null
-                )
-            } else {
-                // If the date does not exist, create a new entry
-                aggregatedStats[date] = DayStat(
-                    date = date,
-                    confirmed = caseDayDto.total,
-                    deaths = null, // Not provided in the new API response
-                    recovered = null // Not provided in the new API response
-                )
-            }
+fun Map<String, CaseDto>.toTimelineList(): List<CaseCount> {
+    return entries
+        .map { (date, dto) ->
+            CaseCount(
+                date = date,
+                total = dto.total,
+                new = dto.new
+            )
         }
-    }
-
-    val timeline = aggregatedStats.values.sortedBy { it.date }
-
-    return CountryStats(country = countryName, timeline = timeline)
+        .sortedBy { it.date }
 }
