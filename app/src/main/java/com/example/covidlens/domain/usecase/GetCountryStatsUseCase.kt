@@ -6,7 +6,7 @@ import com.example.covidlens.domain.repo.CovidRepository
 class GetCountryStatsUseCase(
     private val repo: CovidRepository
 ) {
-    suspend operator fun invoke(country: String): Result<List<RegionCases>> {
+    suspend operator fun invoke(country: String): List<RegionCases> {
         return repo.getCountryStats(country)
     }
 }

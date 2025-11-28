@@ -3,58 +3,70 @@ package com.example.covidlens
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.viewModels
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.rememberNavController
-import com.example.covidlens.ui.screen.CompareScreen
-import com.example.covidlens.ui.screen.CountryDetailScreen
-import com.example.covidlens.ui.screen.SearchScreen
-import com.example.covidlens.ui.theme.CovidLensTheme
+import com.example.covidlens.data.prefs.UserPrefsDataStore
+import com.example.covidlens.data.remote.ApiKeyProvider
+import com.example.covidlens.data.remote.CovidApi
+import com.example.covidlens.data.repo.CovidRepositoryImpl
+import com.example.covidlens.data.repo.UserPreferencesRepositoryImpl
+import com.example.covidlens.ui.navigation.AppNavigation
 import com.example.covidlens.ui.viewmodel.MainViewModel
-import com.example.covidlens.ui.viewmodel.MainViewModelFactory
+import okhttp3.OkHttpClient
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
 
 class MainActivity : ComponentActivity() {
-
-    private val viewModel: MainViewModel by viewModels { MainViewModelFactory(application) }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent {
-            CovidLensTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    AppNavigation(viewModel)
-                }
+
+        // --- Creación de dependencias ---
+
+        val okHttpClient = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val request = chain.request().newBuilder()
+                    .addHeader("X-Api-Key", ApiKeyProvider().getKey())
+                    .build()
+                chain.proceed(request)
             }
-        }
-    }
-}
+            .build()
 
-@Composable
-fun AppNavigation(viewModel: MainViewModel) {
-    val navController = rememberNavController()
+        val retrofit = Retrofit.Builder()
+            .baseUrl("https://api.api-ninjas.com/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
 
-    NavHost(navController = navController, startDestination = "search") {
-        composable("search") {
-            SearchScreen(
-                vm = viewModel,
-                navigateToDetail = { navController.navigate("detail") },
-                navigateToCompare = { navController.navigate("compare") }
-            )
-        }
-        composable("detail") {
-            CountryDetailScreen(vm = viewModel)
-        }
-        composable("compare") {
-            CompareScreen(vm = viewModel)
+        val covidApi = retrofit.create(CovidApi::class.java)
+        val covidRepo = CovidRepositoryImpl(covidApi)
+        val prefsDataStore = UserPrefsDataStore(applicationContext)
+        val prefsRepo = UserPreferencesRepositoryImpl(prefsDataStore)
+
+        // --- Fin de la creación de dependencias ---
+
+        setContent {
+            MaterialTheme {
+                // ⭐ Crear el NavController
+                val navController = rememberNavController()
+
+                val vm: MainViewModel = viewModel(
+                    factory = object : ViewModelProvider.Factory {
+                        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                            @Suppress("UNCHECKED_CAST")
+                            return MainViewModel(covidRepo, prefsRepo) as T
+                        }
+                    }
+                )
+
+                // ⭐ Pasar ambos parámetros a AppNavigation
+                AppNavigation(
+                    navController = navController,
+                    vm = vm
+                )
+            }
         }
     }
 }

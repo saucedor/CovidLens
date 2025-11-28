@@ -1,6 +1,7 @@
 package com.example.covidlens.data.repo
 
 import com.example.covidlens.data.prefs.UserPrefsDataStore
+import com.example.covidlens.domain.repo.UserPreferencesRepository
 import kotlinx.coroutines.flow.firstOrNull
 
 class UserPreferencesRepositoryImpl(
