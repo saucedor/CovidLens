@@ -3,8 +3,10 @@ package com.example.covidlens.ui.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.covidlens.data.SimulatedLoader
-import com.example.covidlens.domain.usecase.*
+import com.example.covidlens.domain.usecase.GetCountryStatsUseCase
+import com.example.covidlens.domain.usecase.GetLastCountryUseCase
+import com.example.covidlens.domain.usecase.GetMultiCountrySnapshotUseCase
+import com.example.covidlens.domain.usecase.SaveLastCountryUseCase
 import com.example.covidlens.ui.state.UiState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,56 +24,55 @@ class MainViewModel(
     private val _state = MutableStateFlow<UiState>(UiState.Idle)
     val state: StateFlow<UiState> = _state
 
-    // Store the last executed action to allow retrying
     private var lastAction: (() -> Unit)? = null
 
-    var selectedDate: String? = null
-    var simulatedMode: Boolean = false
-
     fun searchCountry(country: String) {
-        // Define the search action as a local function
+        val query = country.trim()
+        if (query.isBlank()) {
+            _state.value = UiState.Error("Please enter a country before searching.")
+            return
+        }
+
         fun doSearch() {
             viewModelScope.launch {
                 _state.value = UiState.Loading
                 try {
-                    val result =
-                        if (simulatedMode) SimulatedLoader.loadCountry(getApplication(), country)
-                        else getCountryStats(country)
+                    val result = getCountryStats(query)
 
                     result.onSuccess { stats ->
-                        saveLastCountry(country)
-                        _state.value = UiState.SuccessCountry(stats, simulatedMode)
+                        saveLastCountry(query)
+                        _state.value = UiState.SuccessCountry(stats)
                     }.onFailure {
-                        _state.value = UiState.Error(it.message ?: "País no encontrado o error de red.")
+                        _state.value = UiState.Error(it.message ?: "Country not found or network error.")
                     }
-
                 } catch (e: Exception) {
-                    _state.value = UiState.Error("No se pudieron obtener los datos. Revisa tu conexión.")
+                    _state.value = UiState.Error(e.message ?: "Could not retrieve data. Check your connection.")
                 }
             }
         }
-        // Store the function reference and execute it
         lastAction = ::doSearch
         doSearch()
     }
 
     fun compareCountries(countries: List<String>) {
-        // Define the compare action as a local function
+        val sanitized = countries.map { it.trim() }.filter { it.isNotBlank() }
+        if (sanitized.size < 2) {
+            _state.value = UiState.Error("Enter at least two countries to compare.")
+            return
+        }
+
         fun doCompare() {
             viewModelScope.launch {
                 _state.value = UiState.Loading
-                val result =
-                    if (simulatedMode) SimulatedLoader.loadCountries(getApplication(), countries)
-                    else getSnapshot(countries)
+                val result = getSnapshot(sanitized)
 
                 result.onSuccess {
-                    _state.value = UiState.SuccessComparison(it, simulatedMode)
+                    _state.value = UiState.SuccessComparison(it)
                 }.onFailure {
-                    _state.value = UiState.Error("Error al comparar países.")
+                    _state.value = UiState.Error("Error comparing countries.")
                 }
             }
         }
-        // Store the function reference and execute it
         lastAction = ::doCompare
         doCompare()
     }

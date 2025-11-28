@@ -6,20 +6,20 @@ import retrofit2.converter.gson.GsonConverterFactory
 
 object RetrofitModule {
 
-    // You should move this to a more secure place like BuildConfig
-    private const val BASE_URL = "https://covid-19-data.p.rapidapi.com/"
+    private const val BASE_URL = "https://api.api-ninjas.com/"
 
-    fun create(apiKey: String): CovidApi {
+    fun provideApi(): CovidApi {
+        val apiKeyProvider = ApiKeyProvider()
+
         val client = OkHttpClient.Builder()
-            .addInterceptor(ApiKeyInterceptor(apiKey))
+            .addInterceptor(ApiKeyInterceptor(apiKeyProvider))
             .build()
 
-        val retrofit = Retrofit.Builder()
+        return Retrofit.Builder()
             .baseUrl(BASE_URL)
             .client(client)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
-
-        return retrofit.create(CovidApi::class.java)
+            .create(CovidApi::class.java)
     }
 }

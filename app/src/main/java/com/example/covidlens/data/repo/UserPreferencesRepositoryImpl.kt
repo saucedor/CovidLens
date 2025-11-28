@@ -1,18 +1,17 @@
 package com.example.covidlens.data.repo
 
 import com.example.covidlens.data.prefs.UserPrefsDataStore
-import com.example.covidlens.domain.repo.UserPreferencesRepository
-import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.firstOrNull
 
-class UserPreferencesRepositoryImpl constructor(
-    private val userPrefsDataStore: UserPrefsDataStore
+class UserPreferencesRepositoryImpl(
+    private val dataStore: UserPrefsDataStore
 ) : UserPreferencesRepository {
 
-    override fun getLastCountry(): Flow<String?> {
-        return userPrefsDataStore.getLastCountry()
+    override suspend fun getLastCountry(): String? {
+        return dataStore.getLastCountryFlow().firstOrNull()
     }
 
     override suspend fun saveLastCountry(country: String) {
-        userPrefsDataStore.saveLastCountry(country)
+        dataStore.saveLastCountry(country)
     }
 }
