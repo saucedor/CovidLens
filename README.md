@@ -1,3 +1,8 @@
+Covid-19 Lens
+César Ignacio Saucedo Rodríguez 
+A01712245
+
+
 <img width="532" height="1157" alt="image" src="https://github.com/user-attachments/assets/fa21b6ef-2676-4561-8ceb-2fe35698aa06" />
 
 <img width="512" height="1152" alt="image" src="https://github.com/user-attachments/assets/facc9446-bd52-4989-add7-f35240a82579" />
