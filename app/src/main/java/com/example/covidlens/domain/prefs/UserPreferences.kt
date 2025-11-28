@@ -1,4 +1,4 @@
-package com.example.covidlens.domain.prefs
+package com.example.covidlens.domain.repo
 
 interface UserPreferencesRepository {
     suspend fun getLastCountry(): String?

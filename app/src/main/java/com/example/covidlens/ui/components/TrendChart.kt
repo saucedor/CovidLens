@@ -3,47 +3,51 @@ package com.example.covidlens.ui.components
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.unit.dp
+import com.example.covidlens.ui.model.TimelineItem
 
 @Composable
 fun TrendChart(
-    values: List<Int>,
-    label: String? = null
+    data: List<TimelineItem>,
+    modifier: Modifier = Modifier
 ) {
-    if (values.isEmpty()) return
+    if (data.isEmpty()) return
 
-    val max = values.maxOrNull() ?: 1
-    val normalized = values.map { it.toFloat() / max }
+    val maxValue = (data.maxOf { it.total }).takeIf { it > 0 } ?: 1
+    val primaryColor = MaterialTheme.colorScheme.primary
 
     Canvas(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(180.dp)
+            .padding(8.dp)
     ) {
-        val w = size.width
-        val h = size.height
-
-        val step = w / (values.size - 1)
-
-        for (i in 0 until values.lastIndex) {
-            val x1 = i * step
-            val y1 = h - (normalized[i] * h)
-
-            val x2 = (i + 1) * step
-            val y2 = h - (normalized[i + 1] * h)
-
-            drawLine(
-                color = Color(0xFF0057FF), // Azul estilo Stripe
-                start = Offset(x1, y1),
-                end = Offset(x2, y2),
-                strokeWidth = 6f,
-                cap = StrokeCap.Round
-            )
+        val gap = size.width / (data.size - 1).coerceAtLeast(1)
+        val points = data.mapIndexed { index, item ->
+            val x = index * gap
+            val y = size.height - (item.total / maxValue.toFloat()) * size.height
+            Offset(x, y)
         }
+
+        val path = Path().apply {
+            moveTo(points.first().x, points.first().y)
+            points.drop(1).forEach {
+                lineTo(it.x, it.y)
+            }
+        }
+
+        drawPath(
+            path = path,
+            color = primaryColor,
+            style = Stroke(width = 6f, cap = StrokeCap.Round)
+        )
     }
 }

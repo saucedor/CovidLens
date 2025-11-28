@@ -1,89 +1,159 @@
 package com.example.covidlens.ui.viewmodel
 
-import android.app.Application
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.covidlens.domain.usecase.GetCountryStatsUseCase
-import com.example.covidlens.domain.usecase.GetLastCountryUseCase
-import com.example.covidlens.domain.usecase.GetMultiCountrySnapshotUseCase
-import com.example.covidlens.domain.usecase.SaveLastCountryUseCase
-import com.example.covidlens.ui.state.UiState
+import com.example.covidlens.domain.model.RegionCases
+import com.example.covidlens.domain.repo.CovidRepository
+import com.example.covidlens.domain.repo.UserPreferencesRepository
+import com.example.covidlens.ui.model.CompareResultEntry
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 
-class MainViewModel(
-    app: Application,
-    private val getCountryStats: GetCountryStatsUseCase,
-    private val getSnapshot: GetMultiCountrySnapshotUseCase,
-    private val saveLastCountry: SaveLastCountryUseCase,
-    private val getLastCountry: GetLastCountryUseCase
-) : AndroidViewModel(app) {
+// =========================================
+// UI STATES (used in Search + Detail screens)
+// =========================================
 
+sealed class UiState {
+    object Idle : UiState()
+    object Loading : UiState()
+    data class Error(val message: String) : UiState()
+    data class SuccessCountry(val data: List<RegionCases>) : UiState()
+}
+
+sealed class UiStateGlobal {
+    object Idle : UiStateGlobal()
+    object Loading : UiStateGlobal()
+    data class Error(val message: String) : UiStateGlobal()
+    data class Success(val data: List<RegionCases>) : UiStateGlobal()
+}
+
+// =========================================
+// COMPARE STATE (used in CompareScreen)
+// =========================================
+
+sealed class CompareState {
+    object Idle : CompareState()
+    object Loading : CompareState()
+    data class Success(val data: List<CompareResultEntry>) : CompareState()
+    data class Error(val message: String) : CompareState()
+}
+
+// =========================================
+// MAIN VIEWMODEL
+// =========================================
+
+class MainViewModel(
+    private val covidRepo: CovidRepository,
+    private val prefsRepo: UserPreferencesRepository
+) : ViewModel() {
+
+    // -------- Country search state --------
     private val _state = MutableStateFlow<UiState>(UiState.Idle)
     val state: StateFlow<UiState> = _state
 
-    private var lastAction: (() -> Unit)? = null
+    // -------- Global snapshot state --------
+    private val _globalState = MutableStateFlow<UiStateGlobal>(UiStateGlobal.Idle)
+    val globalState: StateFlow<UiStateGlobal> = _globalState
 
+    // -------- Compare state --------
+    private val _compareState = MutableStateFlow<CompareState>(CompareState.Idle)
+    val compareState: StateFlow<CompareState> = _compareState
+
+    // =========================================
+    // SEARCH COUNTRY
+    // =========================================
     fun searchCountry(country: String) {
-        val query = country.trim()
-        if (query.isBlank()) {
-            _state.value = UiState.Error("Please enter a country before searching.")
-            return
-        }
+        if (country.isBlank()) return
 
-        fun doSearch() {
-            viewModelScope.launch {
-                _state.value = UiState.Loading
-                try {
-                    val result = getCountryStats(query)
+        viewModelScope.launch {
+            _state.value = UiState.Loading
 
-                    result.onSuccess { stats ->
-                        saveLastCountry(query)
-                        _state.value = UiState.SuccessCountry(stats)
-                    }.onFailure {
-                        _state.value = UiState.Error(it.message ?: "Country not found or network error.")
-                    }
-                } catch (e: Exception) {
-                    _state.value = UiState.Error(e.message ?: "Could not retrieve data. Check your connection.")
-                }
+            try {
+                val result = covidRepo.getCountryStats(country)
+                _state.value = UiState.SuccessCountry(result)
+
+                prefsRepo.saveLastCountry(country)
+
+            } catch (e: Exception) {
+                _state.value = UiState.Error(e.message ?: "Unknown error")
             }
         }
-        lastAction = ::doSearch
-        doSearch()
     }
 
-    fun compareCountries(countries: List<String>) {
-        val sanitized = countries.map { it.trim() }.filter { it.isNotBlank() }
-        if (sanitized.size < 2) {
-            _state.value = UiState.Error("Enter at least two countries to compare.")
-            return
-        }
-
-        fun doCompare() {
-            viewModelScope.launch {
-                _state.value = UiState.Loading
-                val result = getSnapshot(sanitized)
-
-                result.onSuccess {
-                    _state.value = UiState.SuccessComparison(it)
-                }.onFailure {
-                    _state.value = UiState.Error("Error comparing countries.")
-                }
-            }
-        }
-        lastAction = ::doCompare
-        doCompare()
-    }
-
-    fun retry() {
-        lastAction?.invoke()
-    }
-
+    // =========================================
+    // LOAD LAST COUNTRY
+    // =========================================
     fun loadLastCountry(onLoaded: (String?) -> Unit) {
         viewModelScope.launch {
-            onLoaded(getLastCountry().firstOrNull())
+            val saved = prefsRepo.getLastCountry()
+            onLoaded(saved)
+        }
+    }
+
+    // =========================================
+    // RETRY
+    // =========================================
+    fun retry() {
+        _state.value = UiState.Idle
+    }
+
+    // =========================================
+    // LOAD GLOBAL SNAPSHOT
+    // =========================================
+    fun loadGlobalSnapshot() {
+        viewModelScope.launch {
+            _globalState.value = UiStateGlobal.Loading
+
+            try {
+                val result = covidRepo.getMultipleCountrySnapshot()
+                _globalState.value = UiStateGlobal.Success(result)
+            } catch (e: Exception) {
+                _globalState.value = UiStateGlobal.Error(e.message ?: "Unknown error")
+            }
+        }
+    }
+
+    // =========================================
+    // COMPARE COUNTRIES (SAFE VERSION)
+// =========================================
+    fun compareCountries(countries: List<String>) {
+        viewModelScope.launch {
+            if (countries.isEmpty()) {
+                _compareState.value = CompareState.Error("No countries selected.")
+                return@launch
+            }
+
+            _compareState.value = CompareState.Loading
+
+            try {
+                val result = countries.map { country ->
+                    try {
+
+                        val stats = covidRepo.getCountryStats(country)
+
+                        CompareResultEntry(
+                            country = country,
+                            cases = stats,
+                            error = null
+                        )
+
+                    } catch (e: Exception) {
+
+                        // Prevent crash, isolate error by country
+                        CompareResultEntry(
+                            country = country,
+                            cases = emptyList(),
+                            error = e.message ?: "Failed"
+                        )
+                    }
+                }
+
+                _compareState.value = CompareState.Success(result)
+
+            } catch (e: Exception) {
+                _compareState.value = CompareState.Error(e.message ?: "Unknown error")
+            }
         }
     }
 }
