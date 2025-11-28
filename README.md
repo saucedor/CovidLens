@@ -4,6 +4,10 @@ César Ignacio Saucedo Rodríguez
 
 A01712245
 
+Android
+
+----------UI/UX------------
+
 
 <img width="532" height="1157" alt="image" src="https://github.com/user-attachments/assets/fa21b6ef-2676-4561-8ceb-2fe35698aa06" />
 
